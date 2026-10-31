@@ -1,0 +1,47 @@
+name: Publish GitHub Release
+on:
+    workflow_dispatch:
+    workflow_run:
+        workflows: [Update CHANGELOG.md]
+        types:
+            - completed
+permissions: {}
+jobs:
+    create-release:
+        if: >
+            github.repository == 'PDFtoMark/gab-poc-wp-pg-base' &&
+            (
+                github.event_name == 'workflow_dispatch' ||
+                (
+                    github.event.workflow_run.conclusion == 'success' &&
+                    github.event.workflow_run.head_branch == 'trunk'
+                )
+            )
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        permissions:
+            contents: write
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ github.event.workflow_run.head_branch || github.ref }}
+            - name: Probe checked-out code and event
+              run: |
+                  echo "EVENT=$GITHUB_EVENT_NAME GITHUB_REF=$GITHUB_REF"
+                  echo "WR_head_branch=${{ github.event.workflow_run.head_branch }}"
+                  echo "WR_head_repo=${{ github.event.workflow_run.head_repository.full_name }}"
+                  echo "WR_event=${{ github.event.workflow_run.event }}"
+                  echo "HEAD=$(git rev-parse HEAD)"
+                  if [ -f BASE_MARKER ]; then echo "CHECKOUT=BASE_CODE"; else echo "CHECKOUT=NOT_BASE"; fi
+                  if [ -f FORK_MARKER ]; then echo "CHECKOUT=FORK_CODE"; else echo "CHECKOUT=NO_FORK_CODE"; fi
+            - name: Create GitHub Release (privileged impact)
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  VERSION=$(jq -r '.version' lerna.json)
+                  TAG="v$VERSION"
+                  if gh release view "$TAG" &>/dev/null; then
+                      echo "Release $TAG already exists, skipping."
+                      exit 0
+                  fi
+                  gh release create "$TAG" --title "PoC $TAG" --notes "Release created by an unprivileged attacker via workflow_run name spoofing." --target trunk
