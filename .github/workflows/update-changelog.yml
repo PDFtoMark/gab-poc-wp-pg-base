@@ -1,0 +1,9 @@
+name: Update CHANGELOG.md
+on:
+  pull_request:
+jobs:
+  ok:
+    runs-on: ubuntu-latest
+    steps:
+      - name: forged upstream succeeds
+        run: echo "forged upstream workflow succeeded on $GITHUB_HEAD_REF"
